@@ -143,7 +143,7 @@ export async function PUT(request: NextRequest) {
     const insertMany = db.transaction((cases: typeof junitResult extends null ? never : NonNullable<typeof junitResult>["testCases"]) => {
       for (const tc of cases) {
         const videoFile = hasVideos
-          ? findVideoForTest(path.join(runDir, "videos"), tc.testName)
+          ? findVideoForTest(path.join(runDir, "videos"), tc.testName, runId)
           : null;
         insertTestCase.run(
           runId,
@@ -260,13 +260,13 @@ async function copyDir(src: string, dest: string): Promise<void> {
   await fsp.cp(src, dest, { recursive: true });
 }
 
-function findVideoForTest(videosDir: string, testName: string): string | null {
+function findVideoForTest(videosDir: string, testName: string, runId: string): string | null {
   try {
     if (!fs.existsSync(videosDir)) return null;
     const files = fs.readdirSync(videosDir);
     const normalized = testName.toLowerCase().replace(/\s+/g, "-");
     const match = files.find((f) => f.toLowerCase().includes(normalized));
-    return match ? `/reports/videos/${match}` : null;
+    return match ? `/reports/${runId}/videos/${match}` : null;
   } catch {
     return null;
   }
