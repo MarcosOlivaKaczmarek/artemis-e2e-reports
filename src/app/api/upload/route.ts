@@ -42,6 +42,9 @@ export async function PUT(request: NextRequest) {
     const archivePath = path.join(tmpDir, "upload.tar.gz");
     await fsp.writeFile(archivePath, archiveBuffer);
 
+    // Clean up old data if re-uploading the same run
+    db.prepare("DELETE FROM test_cases WHERE run_id = ?").run(runId);
+
     // Create run record in uploading state
     db.prepare(`
       INSERT OR REPLACE INTO runs (id, github_run_id, branch, commit_sha, pr_number, phase, triggered_by, status, upload_size_bytes)
@@ -77,14 +80,20 @@ export async function PUT(request: NextRequest) {
     const coverageHtmlPaths = await findDirs(extractDir, "lcov-report");
     const hasCoverage = coverageHtmlPaths.length > 0;
 
-    // Set up report directory
+    // Set up report directory (clean old files on re-upload)
     const runDir = getRunDir(runId);
+    await fsp.rm(runDir, { recursive: true, force: true }).catch(() => {});
     await fsp.mkdir(runDir, { recursive: true });
 
-    // Copy monocart report
+    // Copy all monocart reports (parallel + sequential are separate)
     if (hasMonocart) {
-      const monocartDest = path.join(runDir, "monocart");
-      await copyDir(monocartPaths[0], monocartDest);
+      for (const monocartPath of monocartPaths) {
+        const dirName = path.basename(monocartPath);
+        // e.g. monocart-report-parallel → monocart-parallel, monocart-report-sequential → monocart-sequential
+        const suffix = dirName.replace("monocart-report", "").replace(/^-/, "");
+        const destName = suffix ? `monocart-${suffix}` : "monocart";
+        await copyDir(monocartPath, path.join(runDir, destName));
+      }
     }
 
     // Copy coverage HTML
