@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth-guard";
 import { REPORTS_DIR } from "@/lib/reports";
 import path from "path";
 import fs from "fs";
@@ -23,6 +24,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ path: string[] }> }
 ) {
+  const authError = await requireAuth();
+  if (authError) return authError;
+
   const { path: segments } = await params;
   const filePath = path.join(REPORTS_DIR, ...segments);
 
