@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireToken } from "@/lib/auth-guard";
 import { getDb } from "@/lib/db";
-import { getRunDir, REPORTS_DIR } from "@/lib/reports";
+import { getRunDir } from "@/lib/reports";
 import { parseJUnitXml } from "@/lib/parsers/junit";
 import { parseLcov } from "@/lib/parsers/coverage";
 import fs from "fs";
