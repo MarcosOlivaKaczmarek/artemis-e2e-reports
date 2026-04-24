@@ -70,6 +70,14 @@ export function RunDetail() {
       .finally(() => setLoading(false));
   }, [id]);
 
+  const toggleRow = useCallback((tcId: number) => {
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(tcId)) next.delete(tcId); else next.add(tcId);
+      return next;
+    });
+  }, []);
+
   if (loading) {
     return (
       <>
@@ -111,14 +119,6 @@ export function RunDetail() {
     phaseEntries.push({ name: "Phase 1", pct: COMBINED_PHASE_PCT, cls: "p1" });
     phaseEntries.push({ name: "Phase 2", pct: COMBINED_PHASE_PCT, cls: "p2" });
   }
-
-  const toggleRow = useCallback((tcId: number) => {
-    setExpandedRows(prev => {
-      const next = new Set(prev);
-      if (next.has(tcId)) next.delete(tcId); else next.add(tcId);
-      return next;
-    });
-  }, []);
 
   const startTime = new Date(run.created_at).toLocaleString("en-US", {
     month: "short", day: "numeric", year: "numeric",
