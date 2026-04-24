@@ -5,4 +5,6 @@ export type {
   PaginatedResponse,
   SummaryStats,
   TrendsResponse,
+  FlakyTest,
+  FlakinessResponse,
 } from "./types.js";

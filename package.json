@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "dev": "concurrently -n server,client -c blue,green \"npm run dev -w @artemis-e2e/server\" \"npm run dev -w @artemis-e2e/client\"",
-    "build": "npm run build -w @artemis-e2e/client && npm run build -w @artemis-e2e/server",
+    "build": "npm run build -w @artemis-e2e/shared && npm run build -w @artemis-e2e/client && npm run build -w @artemis-e2e/server",
     "start": "npm run start -w @artemis-e2e/server",
     "typecheck": "npm run typecheck --workspaces --if-present"
   },

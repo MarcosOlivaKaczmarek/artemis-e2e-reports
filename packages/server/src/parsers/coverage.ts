@@ -1,8 +1,10 @@
-export function parseLcov(lcovContent: string): {
-  lineCoveragePct: number;
+export interface CoverageResult {
+  lineCoveragePct: number | null;
   linesFound: number;
   linesHit: number;
-} {
+}
+
+export function parseLcov(lcovContent: string): CoverageResult {
   let linesFound = 0;
   let linesHit = 0;
 
@@ -15,9 +17,12 @@ export function parseLcov(lcovContent: string): {
     }
   }
 
-  const lineCoveragePct = linesFound > 0 ? (linesHit / linesFound) * 100 : 0;
+  const lineCoveragePct = linesFound > 0
+    ? Math.round((linesHit / linesFound) * 10000) / 100
+    : null;
+
   return {
-    lineCoveragePct: Math.round(lineCoveragePct * 100) / 100,
+    lineCoveragePct,
     linesFound,
     linesHit,
   };

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 
 interface AuthSession {
   authenticated: boolean;
@@ -29,8 +29,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<"loading" | "authenticated" | "unauthenticated">("loading");
 
   useEffect(() => {
-    fetch("/api/auth/session", { credentials: "include" })
-      .then((res) => res.json())
+    const controller = new AbortController();
+    fetch("/api/auth/session", { credentials: "include", signal: controller.signal })
+      .then((res) => {
+        if (!res.ok) throw new Error(`Session check failed: ${res.status}`);
+        return res.json();
+      })
       .then((data: AuthSession) => {
         setSession(data);
         if (!data.authEnabled || data.authenticated) {
@@ -39,16 +43,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setStatus("unauthenticated");
         }
       })
-      .catch(() => {
-        setStatus("unauthenticated");
+      .catch((err) => {
+        if (err.name !== "AbortError") setStatus("unauthenticated");
       });
+    return () => controller.abort();
   }, []);
 
-  function signIn() {
+  const signIn = useCallback(() => {
     window.location.href = "/api/auth/login";
-  }
+  }, []);
 
-  async function signOut() {
+  const signOut = useCallback(async () => {
     await fetch("/api/auth/logout", {
       method: "POST",
       credentials: "include",
@@ -56,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setStatus("unauthenticated");
     window.location.href = "/";
-  }
+  }, []);
 
   return (
     <AuthContext.Provider value={{ session, status, signIn, signOut }}>

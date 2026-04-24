@@ -5,6 +5,13 @@ import { DB_PATH } from "./config.js";
 
 let db: Database.Database | null = null;
 
+export function closeDb(): void {
+  if (db) {
+    db.close();
+    db = null;
+  }
+}
+
 export function getDb(): Database.Database {
   if (!db) {
     const dir = path.dirname(DB_PATH);
@@ -65,6 +72,11 @@ function initSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_runs_pr ON runs(pr_number);
     CREATE INDEX IF NOT EXISTS idx_runs_branch ON runs(branch);
     CREATE INDEX IF NOT EXISTS idx_runs_created ON runs(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);
     CREATE INDEX IF NOT EXISTS idx_test_cases_run ON test_cases(run_id);
+    CREATE INDEX IF NOT EXISTS idx_test_cases_status ON test_cases(status);
+    CREATE INDEX IF NOT EXISTS idx_test_cases_suite ON test_cases(suite_name);
+    CREATE INDEX IF NOT EXISTS idx_test_cases_run_status ON test_cases(run_id, status);
+    CREATE INDEX IF NOT EXISTS idx_runs_branch_status_created ON runs(branch, status, created_at);
   `);
 }

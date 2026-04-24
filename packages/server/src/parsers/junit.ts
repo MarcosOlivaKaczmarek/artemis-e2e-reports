@@ -78,9 +78,14 @@ export function parseJUnitXml(xml: string): JUnitResult {
     }
   }
 
-  const passed = testCases.filter((t) => t.status === "passed").length;
-  const failed = testCases.filter((t) => t.status === "failed" || t.status === "error").length;
-  const skipped = testCases.filter((t) => t.status === "skipped").length;
+  let passed = 0;
+  let failed = 0;
+  let skipped = 0;
+  for (const t of testCases) {
+    if (t.status === "passed") passed++;
+    else if (t.status === "failed" || t.status === "error") failed++;
+    else if (t.status === "skipped") skipped++;
+  }
 
   return {
     totalTests: testCases.length,

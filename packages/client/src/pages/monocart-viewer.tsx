@@ -2,14 +2,9 @@ import { useEffect, useState } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
 import type { Run } from "@artemis-e2e/shared";
 import { apiFetch } from "@/lib/api";
-import { StatusBadge } from "@/components/status-badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { statusClass } from "@/lib/utils";
 
-interface MonocartReport {
-  name: string;
-  label: string;
-  path: string;
-}
+interface MonocartReport { name: string; label: string; path: string; }
 
 export function MonocartViewer() {
   const { id } = useParams<{ id: string }>();
@@ -24,7 +19,7 @@ export function MonocartViewer() {
   useEffect(() => {
     if (!id) return;
     Promise.all([
-      apiFetch<{ run: Run }>(`/api/runs/${id}`),
+      apiFetch<{ run: Run; testCases: unknown[] }>(`/api/runs/${id}`),
       apiFetch<{ reports: MonocartReport[] }>(`/api/runs/${id}/monocart-reports`),
     ])
       .then(([runData, reportsData]) => {
@@ -41,62 +36,50 @@ export function MonocartViewer() {
   }, [id]);
 
   if (loading) {
-    return <Skeleton className="h-screen w-full" />;
+    return <div style={{ height: "100vh", background: "var(--gray-100)" }} />;
   }
 
   if (notFound || !run) {
     return (
-      <div className="text-center py-12">
-        <h1 className="text-2xl font-bold mb-2">Monocart report not available</h1>
-        <Link to={`/runs/${id}`} className="text-muted-foreground hover:underline">
-          Back to run
-        </Link>
+      <div style={{ textAlign: "center", padding: "64px 0" }}>
+        <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Monocart report not available</h1>
+        <Link to={`/runs/${id}`} style={{ color: "var(--blue)", textDecoration: "none" }}>← Back to run</Link>
       </div>
     );
   }
 
-  const active = reports.find((r) => r.name === selectedReport) || reports[0];
+  const active = reports.find(r => r.name === selectedReport) || reports[0];
+  const sc = statusClass(run.status);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-3.5rem)]">
-      <div className="flex items-center gap-4 p-3 border-b bg-background shrink-0">
-        <Link
-          to={`/runs/${id}`}
-          className="text-sm text-muted-foreground hover:underline"
-        >
-          &larr; Back to run
-        </Link>
-        <span className="text-sm font-medium">{run.branch}</span>
-        <span className="text-sm font-mono text-muted-foreground">
-          {run.commit_sha.slice(0, 7)}
-        </span>
-        <StatusBadge status={run.status} />
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+      <div className="topbar" style={{ gap: 12 }}>
+        <Link to={`/runs/${id}`} className="back-btn">← Back to run</Link>
+        <div className="topbar-divider" />
+        <span className="branch-tag">{run.branch}</span>
+        <span className="sha">{run.commit_sha.slice(0, 7)}</span>
+        <span className={`status-chip ${sc}`}><span className="chip-dot" />{sc}</span>
         {reports.length > 1 ? (
-          <div className="flex gap-1 ml-auto">
-            {reports.map((r) => (
+          <div style={{ display: "flex", gap: 4, marginLeft: "auto" }}>
+            {reports.map(r => (
               <Link
                 key={r.name}
                 to={`/runs/${id}/monocart?report=${r.name}`}
-                className={`text-sm px-3 py-1 rounded-md ${
-                  r.name === active.name
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80"
-                }`}
+                className="action-btn"
+                style={r.name === active.name ? { background: "var(--blue)", color: "#fff", borderColor: "var(--blue)" } : {}}
               >
                 {r.label}
               </Link>
             ))}
           </div>
         ) : (
-          <span className="text-sm text-muted-foreground ml-auto">
-            Monocart Report
-          </span>
+          <span style={{ marginLeft: "auto", color: "var(--gray-500)", fontSize: 12 }}>Monocart Report</span>
         )}
       </div>
       <iframe
         key={active.name}
         src={active.path}
-        className="flex-1 w-full border-0"
+        style={{ flex: 1, width: "100%", border: "none" }}
         title={`Monocart Report - ${active.label}`}
       />
     </div>

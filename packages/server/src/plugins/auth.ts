@@ -2,7 +2,6 @@ import fp from "fastify-plugin";
 import cookie from "@fastify/cookie";
 import oauth2 from "@fastify/oauth2";
 import { FastifyInstance } from "fastify";
-import jwt from "jsonwebtoken";
 import { AUTH_ENABLED, SESSION_SECRET, APP_URL, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET } from "../config.js";
 
 export default fp(async function authPlugin(fastify: FastifyInstance) {

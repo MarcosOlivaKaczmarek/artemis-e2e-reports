@@ -15,11 +15,11 @@ export interface Run {
   duration_ms: number;
   coverage_pct: number | null;
   phase: string;
-  has_monocart: number;
-  has_coverage: number;
-  has_videos: number;
+  has_monocart: boolean;
+  has_coverage: boolean;
+  has_videos: boolean;
   upload_size_bytes: number;
-  reports_deleted: number;
+  reports_deleted: boolean;
   deleted_at: string | null;
 }
 
@@ -33,7 +33,7 @@ export interface TestCase {
   duration_ms: number;
   failure_message: string | null;
   failure_details: string | null;
-  has_video: number;
+  has_video: boolean;
   video_path: string | null;
 }
 
@@ -45,10 +45,13 @@ export interface TrendPoint {
   total_tests: number;
   total_passed: number;
   total_failed: number;
+  avg_phase1_ms: number | null;
+  avg_phase2_ms: number | null;
+  flaky_rate: number | null;
 }
 
 export interface PaginatedResponse<T> {
-  runs: T[];
+  items: T[];
   pagination: {
     page: number;
     limit: number;
@@ -62,10 +65,30 @@ export interface SummaryStats {
   pass_rate: number | null;
   avg_coverage: number | null;
   active_prs: number;
+  avg_flakiness: number | null;
 }
 
 export interface TrendsResponse {
   trends: TrendPoint[];
   branches: string[];
   summary: SummaryStats;
+}
+
+export interface FlakyTest {
+  suite_name: string;
+  test_name: string;
+  total_runs: number;
+  fail_count: number;
+  flaky_rate: number;
+  last_seen: string;
+}
+
+export interface FlakinessResponse {
+  tests: FlakyTest[];
+  summary: {
+    total_flaky: number;
+    avg_rate: number;
+    affected_runs: number;
+    most_affected_suite: string | null;
+  };
 }

@@ -28,9 +28,8 @@ export async function createBackup(): Promise<string> {
   return backupPath;
 }
 
-export function startBackupScheduler(): void {
-  // Initial backup 1 minute after startup
-  setTimeout(async () => {
+export function startBackupScheduler(): () => void {
+  const initialTimer = setTimeout(async () => {
     try {
       const p = await createBackup();
       console.log(`[backup] Initial backup: ${p}`);
@@ -39,8 +38,7 @@ export function startBackupScheduler(): void {
     }
   }, 60_000);
 
-  // Then every 6 hours
-  setInterval(async () => {
+  const interval = setInterval(async () => {
     try {
       const p = await createBackup();
       console.log(`[backup] Scheduled backup: ${p}`);
@@ -48,4 +46,9 @@ export function startBackupScheduler(): void {
       console.error("[backup] Scheduled backup failed:", e);
     }
   }, 6 * 60 * 60 * 1000);
+
+  return () => {
+    clearTimeout(initialTimer);
+    clearInterval(interval);
+  };
 }

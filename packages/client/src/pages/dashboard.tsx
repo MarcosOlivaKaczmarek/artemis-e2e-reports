@@ -1,297 +1,272 @@
-import { useEffect, useState } from "react";
-import { Link, useSearchParams, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
-  ResponsiveContainer,
-  LineChart,
-  AreaChart,
-  Line,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-} from "recharts";
-import type { Run, TrendPoint, SummaryStats, PaginatedResponse, TrendsResponse } from "@artemis-e2e/shared";
+  Chart,
+  CategoryScale, LinearScale, PointElement, LineElement, LineController,
+  Filler, Tooltip, Legend,
+} from "chart.js";
+import type { Run, PaginatedResponse, TrendsResponse } from "@artemis-e2e/shared";
 import { apiFetch } from "@/lib/api";
-import { StatusBadge } from "@/components/status-badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { DashboardFilters } from "@/components/dashboard-filters";
+import {
+  formatDuration, formatRelativeTime, formatPhase,
+  statusClass, passRate, GITHUB_REPO,
+} from "@/lib/utils";
 
-function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`;
-  const s = Math.floor(ms / 1000);
-  const m = Math.floor(s / 60);
-  return m === 0 ? `${s}s` : `${m}m ${s % 60}s`;
-}
+Chart.register(CategoryScale, LinearScale, PointElement, LineElement, LineController, Filler, Tooltip, Legend);
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function SummaryCards({ data }: { data: { totalRuns: number; passRate: number; avgCoverage: number | null; activePrs: number } }) {
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Runs (7d)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{data.totalRuns}</div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Pass Rate</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{data.passRate.toFixed(1)}%</div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Avg Coverage</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">
-            {data.avgCoverage != null ? `${data.avgCoverage.toFixed(1)}%` : "N/A"}
-          </div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Active PRs</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{data.activePrs}</div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-function PassRateChart({ data }: { data: TrendPoint[] }) {
-  return (
-    <ResponsiveContainer width="100%" height={250}>
-      <LineChart data={data}>
-        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-        <XAxis
-          dataKey="date"
-          tick={{ fontSize: 12 }}
-          tickFormatter={(v) => new Date(v).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-        />
-        <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} unit="%" />
-        <Tooltip
-          labelFormatter={(v) => new Date(v).toLocaleDateString()}
-          formatter={(v) => [`${Number(v ?? 0).toFixed(1)}%`, "Pass Rate"]}
-        />
-        <Line type="monotone" dataKey="avg_pass_rate" stroke="hsl(142, 76%, 36%)" strokeWidth={2} dot={{ r: 3 }} name="Pass Rate" />
-      </LineChart>
-    </ResponsiveContainer>
-  );
-}
-
-function CoverageChart({ data }: { data: TrendPoint[] }) {
-  return (
-    <ResponsiveContainer width="100%" height={250}>
-      <AreaChart data={data}>
-        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-        <XAxis
-          dataKey="date"
-          tick={{ fontSize: 12 }}
-          tickFormatter={(v) => new Date(v).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-        />
-        <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} unit="%" />
-        <Tooltip
-          labelFormatter={(v) => new Date(v).toLocaleDateString()}
-          formatter={(v) => [`${Number(v ?? 0).toFixed(1)}%`, "Coverage"]}
-        />
-        <Area type="monotone" dataKey="avg_coverage" stroke="hsl(221, 83%, 53%)" fill="hsl(221, 83%, 53%)" fillOpacity={0.2} strokeWidth={2} name="Coverage" />
-      </AreaChart>
-    </ResponsiveContainer>
-  );
-}
-
-function RunsTable({ runs }: { runs: Run[] }) {
-  if (runs.length === 0) {
-    return <div className="text-center py-12 text-muted-foreground">No runs found.</div>;
-  }
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Status</TableHead>
-          <TableHead>Branch / PR</TableHead>
-          <TableHead>Commit</TableHead>
-          <TableHead>Phase</TableHead>
-          <TableHead className="text-right">Tests</TableHead>
-          <TableHead className="text-right">Pass</TableHead>
-          <TableHead className="text-right">Fail</TableHead>
-          <TableHead className="text-right">Coverage</TableHead>
-          <TableHead className="text-right">Duration</TableHead>
-          <TableHead className="text-right">Date</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {runs.map((run) => (
-          <TableRow key={run.id}>
-            <TableCell>
-              <Link to={`/runs/${run.id}`} className="hover:underline">
-                <StatusBadge status={run.status} />
-              </Link>
-            </TableCell>
-            <TableCell>
-              <Link to={`/runs/${run.id}`} className="hover:underline font-medium">
-                {run.branch}
-              </Link>
-              {run.pr_number && (
-                <a
-                  href={`https://github.com/ls1intum/Artemis/pull/${run.pr_number}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="ml-2 text-sm text-muted-foreground hover:underline"
-                >
-                  #{run.pr_number}
-                </a>
-              )}
-            </TableCell>
-            <TableCell className="font-mono text-sm">{run.commit_sha.slice(0, 7)}</TableCell>
-            <TableCell>{run.phase}</TableCell>
-            <TableCell className="text-right">{run.total_tests}</TableCell>
-            <TableCell className="text-right text-green-600">{run.passed_tests}</TableCell>
-            <TableCell className="text-right text-red-600">{run.failed_tests > 0 ? run.failed_tests : "-"}</TableCell>
-            <TableCell className="text-right">
-              {run.coverage_pct != null ? `${run.coverage_pct.toFixed(1)}%` : "-"}
-            </TableCell>
-            <TableCell className="text-right">{formatDuration(run.duration_ms)}</TableCell>
-            <TableCell className="text-right text-sm text-muted-foreground">{formatDate(run.created_at)}</TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  );
-}
+const CHART_FONT = { family: "'JetBrains Mono', monospace", size: 11 };
+const CHART_COLOR = "#6b7280";
 
 export function Dashboard() {
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [runsData, setRunsData] = useState<PaginatedResponse<Run> | null>(null);
-  const [trendsData, setTrendsData] = useState<TrendsResponse | null>(null);
+  const [runs, setRuns] = useState<Run[]>([]);
+  const [trends, setTrends] = useState<TrendsResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const page = parseInt(searchParams.get("page") || "1");
+  const [branch, setBranch] = useState("");
+  const [days, setDays] = useState("30");
+
+  const passCanvasRef = useRef<HTMLCanvasElement>(null);
+  const runtimeCanvasRef = useRef<HTMLCanvasElement>(null);
+  const passChart = useRef<Chart | null>(null);
+  const runtimeChart = useRef<Chart | null>(null);
 
   useEffect(() => {
     setLoading(true);
-    const params = new URLSearchParams(searchParams);
-    if (!params.has("limit")) params.set("limit", "20");
     Promise.all([
-      apiFetch<PaginatedResponse<Run>>(`/api/runs?${params.toString()}`),
-      apiFetch<TrendsResponse>("/api/trends"),
+      apiFetch<TrendsResponse>(`/api/trends?days=${days}${branch ? `&branch=${branch}` : ""}`),
+      apiFetch<PaginatedResponse<Run>>("/api/runs?limit=8"),
     ])
-      .then(([runs, trends]) => {
-        setRunsData(runs);
-        setTrendsData(trends);
-      })
-      .catch((e) => console.error("Failed to load dashboard:", e))
+      .then(([t, r]) => { if (t) setTrends(t); if (r?.items) setRuns(r.items); })
+      .catch(console.error)
       .finally(() => setLoading(false));
-  }, [searchParams]);
+  }, [branch, days]);
 
-  function goToPage(p: number) {
-    const params = new URLSearchParams(searchParams);
-    params.set("page", String(p));
-    navigate(`/?${params.toString()}`);
-  }
+  useEffect(() => {
+    if (!trends || !passCanvasRef.current) return;
+    passChart.current?.destroy();
+
+    const labels = trends.trends.map(t =>
+      new Date(t.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    );
+    passChart.current = new Chart(passCanvasRef.current, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [{
+          data: trends.trends.map(t => t.avg_pass_rate ?? null),
+          borderColor: "#1d4ed8",
+          backgroundColor: "rgba(29,78,216,.08)",
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          pointHoverBackgroundColor: "#1d4ed8",
+          fill: true,
+          tension: 0.4,
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        color: CHART_COLOR,
+        font: CHART_FONT,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => `${(ctx.raw as number)?.toFixed(1)}%` } },
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { maxTicksLimit: 8, font: CHART_FONT, color: CHART_COLOR } },
+          y: { min: 0, max: 100, ticks: { callback: v => `${v}%`, font: CHART_FONT, color: CHART_COLOR }, grid: { color: "#f1f5f9" } },
+        },
+      },
+    });
+    return () => { passChart.current?.destroy(); };
+  }, [trends]);
+
+  useEffect(() => {
+    if (!trends || !runtimeCanvasRef.current) return;
+    const hasData = trends.trends.some(t => t.avg_phase1_ms != null || t.avg_phase2_ms != null);
+    if (!hasData) return;
+    runtimeChart.current?.destroy();
+
+    const labels = trends.trends.map(t =>
+      new Date(t.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    );
+    const p1 = trends.trends.map(t => t.avg_phase1_ms != null ? Math.round(t.avg_phase1_ms / 60000 * 10) / 10 : null);
+    const p2 = trends.trends.map(t => t.avg_phase2_ms != null ? Math.round(t.avg_phase2_ms / 60000 * 10) / 10 : null);
+    const total = p1.map((v, i) => (v != null || p2[i] != null) ? Math.round(((v ?? 0) + (p2[i] ?? 0)) * 10) / 10 : null);
+
+    runtimeChart.current = new Chart(runtimeCanvasRef.current, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [
+          { label: "Total", data: total, borderColor: "#6366f1", borderDash: [4, 3], borderWidth: 2, pointRadius: 0, tension: 0.4, order: 0 },
+          { label: "Phase 1", data: p1, borderColor: "#3b82f6", backgroundColor: "rgba(59,130,246,.08)", borderWidth: 1.5, pointRadius: 0, fill: true, tension: 0.4 },
+          { label: "Phase 2", data: p2, borderColor: "#0f2044", backgroundColor: "rgba(15,32,68,.06)", borderWidth: 1.5, pointRadius: 0, fill: true, tension: 0.4 },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        color: CHART_COLOR,
+        font: CHART_FONT,
+        plugins: {
+          legend: { position: "top", align: "end", labels: { boxWidth: 12, padding: 12, font: CHART_FONT, color: CHART_COLOR } },
+          tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${(ctx.raw as number)?.toFixed(1)}m` } },
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { maxTicksLimit: 8, font: CHART_FONT, color: CHART_COLOR } },
+          y: { min: 0, ticks: { callback: v => `${v}m`, font: CHART_FONT, color: CHART_COLOR }, grid: { color: "#f1f5f9" } },
+        },
+      },
+    });
+    return () => { runtimeChart.current?.destroy(); };
+  }, [trends]);
+
+  const summary = trends?.summary;
+  const today = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  const hasPhaseData = trends?.trends.some(t => t.avg_phase1_ms != null || t.avg_phase2_ms != null);
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
+      <>
+        <header className="topbar"><h1 className="topbar-title">Dashboard</h1></header>
+        <div className="skeleton skeleton-hero" />
+        <div className="content">
+          <div className="charts-row">
+            <div className="skeleton skeleton-chart" style={{ height: 260 }} />
+            <div className="skeleton skeleton-chart" style={{ height: 260 }} />
+          </div>
+          <div className="card">
+            {[...Array(8)].map((_, i) => <div key={i} className="skeleton skeleton-row" />)}
+          </div>
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Skeleton className="h-80 rounded-xl" />
-          <Skeleton className="h-80 rounded-xl" />
-        </div>
-        <Skeleton className="h-96 rounded-xl" />
-      </div>
+      </>
     );
   }
 
-  const runs = runsData?.runs ?? [];
-  const pagination = runsData?.pagination;
-  const trends = trendsData?.trends ?? [];
-  const branches = trendsData?.branches ?? [];
-  const summary = trendsData?.summary;
-
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Dashboard</h1>
-
-      {summary && (
-        <SummaryCards
-          data={{
-            totalRuns: summary.total_runs,
-            passRate: summary.pass_rate ?? 0,
-            avgCoverage: summary.avg_coverage,
-            activePrs: summary.active_prs,
-          }}
-        />
-      )}
-
-      {trends.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium">Pass Rate (30d)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <PassRateChart data={trends} />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium">Coverage (30d)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CoverageChart data={trends} />
-            </CardContent>
-          </Card>
+    <>
+      <header className="topbar">
+        <h1 className="topbar-title">Dashboard</h1>
+        <div className="topbar-controls">
+          <select className="select-pill" value={branch} onChange={e => setBranch(e.target.value)}>
+            <option value="">All branches</option>
+            <option value="develop">develop</option>
+            <option value="main">main</option>
+            {trends?.branches.filter(b => b !== "develop" && b !== "main").map(b => <option key={b} value={b}>{b}</option>)}
+          </select>
+          <select className="select-pill" value={days} onChange={e => setDays(e.target.value)}>
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="365">Last year</option>
+          </select>
+          <span className="date-badge">{today}</span>
         </div>
-      )}
+      </header>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-sm font-medium">Test Runs</CardTitle>
-          <DashboardFilters branches={branches} />
-        </CardHeader>
-        <CardContent>
-          <RunsTable runs={runs} />
-          {pagination && pagination.totalPages > 1 && (
-            <div className="flex justify-center gap-2 mt-4">
-              {page > 1 && (
-                <button onClick={() => goToPage(page - 1)} className="px-3 py-1 border rounded text-sm hover:bg-muted">
-                  Previous
-                </button>
-              )}
-              <span className="px-3 py-1 text-sm text-muted-foreground">
-                Page {page} of {pagination.totalPages}
-              </span>
-              {page < pagination.totalPages && (
-                <button onClick={() => goToPage(page + 1)} className="px-3 py-1 border rounded text-sm hover:bg-muted">
-                  Next
-                </button>
-              )}
+      <div className="hero-stat">
+        <div className="hero-stat-item">
+          <div className="stat-label">Total Runs</div>
+          <div className="stat-number">{summary?.total_runs?.toLocaleString() ?? "—"}</div>
+          <div className="stat-sub">last {days === "365" ? "year" : `${days} days`}</div>
+        </div>
+        <div className="hero-stat-item">
+          <div className="stat-accent" />
+          <div className="stat-label">Pass Rate</div>
+          <div className="stat-number blue">
+            {summary?.pass_rate != null ? summary.pass_rate.toFixed(1) : "—"}
+            <span style={{ fontSize: 28 }}>%</span>
+          </div>
+          <div className="stat-sub">{days === "365" ? "1-year" : `${days}-day`} average</div>
+        </div>
+        <div className="hero-stat-item">
+          <div className="stat-label">Avg Flakiness</div>
+          <div className="stat-number amber">
+            {summary?.avg_flakiness != null ? summary.avg_flakiness.toFixed(1) : "0.0"}
+            <span style={{ fontSize: 28 }}>%</span>
+          </div>
+          <div className="stat-sub">{days === "365" ? "1-year" : `${days}-day`} average</div>
+        </div>
+        <div className="hero-stat-item">
+          <div className="stat-label">Active PRs</div>
+          <div className="stat-number">{summary?.active_prs ?? "—"}</div>
+          <div className="stat-sub">with open reports</div>
+        </div>
+      </div>
+
+      <div className="content">
+        <div className="charts-row">
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title">Pass Rate Trend</span>
+              <span className="card-meta">{days}-day rolling · {branch}</span>
             </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+            <div className="card-body" style={{ height: 200, position: "relative" }}>
+              <canvas ref={passCanvasRef} />
+            </div>
+          </div>
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title">Avg Runtime by Phase</span>
+              <span className="card-meta">{days}-day · minutes</span>
+            </div>
+            <div className="card-body" style={{ height: 200, position: "relative" }}>
+              {hasPhaseData
+                ? <canvas ref={runtimeCanvasRef} />
+                : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--gray-500)", fontSize: 12 }}>No phase runtime data yet</div>
+              }
+            </div>
+          </div>
+        </div>
+
+        <div className="card table-card">
+          <div className="card-header">
+            <span className="card-title">Recent Runs</span>
+            <span className="card-meta">Showing {runs.length} most recent</span>
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Status</th><th>Branch</th><th>PR</th><th>Commit</th>
+                  <th>Phase</th><th>Tests</th><th>Pass %</th><th>Duration</th><th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {runs.map(run => {
+                  const sc = statusClass(run.status);
+                  const pr = passRate(run.passed_tests, run.total_tests);
+                  return (
+                    <tr key={run.id} onClick={() => navigate(`/runs/${run.id}`)}>
+                      <td><span className="status-dot"><span className={`dot dot-${sc}`} />{sc}</span></td>
+                      <td><span className="branch-tag">{run.branch}</span></td>
+                      <td>
+                        {run.pr_number
+                          ? <a className="pr-link" href={`https://github.com/${GITHUB_REPO}/pull/${run.pr_number}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>#{run.pr_number}</a>
+                          : <span style={{ color: "var(--gray-300)" }}>—</span>}
+                      </td>
+                      <td><span className="sha">{run.commit_sha.slice(0, 7)}</span></td>
+                      <td><span className="phase-badge">{formatPhase(run.phase)}</span></td>
+                      <td>{run.total_tests.toLocaleString()}</td>
+                      <td>
+                        <div className="pass-bar-wrap">
+                          <div className="pass-bar-bg"><div className="pass-bar-fill" style={{ width: `${pr}%` }} /></div>
+                          <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}>{pr.toFixed(1)}%</span>
+                        </div>
+                      </td>
+                      <td className="mono">{formatDuration(run.duration_ms)}</td>
+                      <td style={{ color: "var(--gray-500)", fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}>{formatRelativeTime(run.created_at)}</td>
+                    </tr>
+                  );
+                })}
+                {!runs.length && (
+                  <tr><td colSpan={9} style={{ textAlign: "center", padding: "32px 0", color: "var(--gray-500)" }}>No runs yet</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }

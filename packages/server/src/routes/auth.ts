@@ -1,7 +1,15 @@
 import { FastifyInstance } from "fastify";
 import jwt from "jsonwebtoken";
+import type { OAuth2Namespace } from "@fastify/oauth2";
 import { AUTH_ENABLED, SESSION_SECRET, APP_URL } from "../config.js";
 import type { SessionUser } from "../guards/auth-guard.js";
+
+interface GitHubUser {
+  login: string;
+  name: string | null;
+  email: string | null;
+  avatar_url: string;
+}
 
 export default async function authRoutes(fastify: FastifyInstance) {
   // GET /api/auth/session - returns current user
@@ -16,7 +24,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
     }
 
     try {
-      const decoded = jwt.verify(token, SESSION_SECRET) as { user: SessionUser };
+      const decoded = jwt.verify(token, SESSION_SECRET, { algorithms: ["HS256"] }) as { user: SessionUser };
       return { authenticated: true, authEnabled: true, user: decoded.user };
     } catch {
       return { authenticated: false, authEnabled: true };
@@ -30,7 +38,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
     }
 
     try {
-      const { token } = await (fastify as any).githubOAuth2.getAccessTokenFromAuthorizationCodeFlow(request);
+      const oauth2 = (fastify as FastifyInstance & { githubOAuth2: OAuth2Namespace }).githubOAuth2;
+      const { token } = await oauth2.getAccessTokenFromAuthorizationCodeFlow(request);
 
       // Fetch user info from GitHub
       const userResponse = await fetch("https://api.github.com/user", {
@@ -44,7 +53,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
         return reply.code(401).send({ error: "Failed to fetch user info" });
       }
 
-      const githubUser = await userResponse.json();
+      const githubUser = await userResponse.json() as GitHubUser;
 
       const user: SessionUser = {
         name: githubUser.login || githubUser.name || "",

@@ -11,6 +11,7 @@ node_modules/
 # build output
 packages/client/dist/
 packages/server/dist/
+packages/shared/dist/
 
 # testing
 coverage/
