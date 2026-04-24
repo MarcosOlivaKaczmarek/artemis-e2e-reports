@@ -1,6 +1,8 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import type { Run, TestCase } from "@artemis-e2e/shared";
+import { apiFetch } from "@/lib/api";
+import { formatDuration, formatPhase, statusClass, passRate, shortRunId, GITHUB_REPO } from "@/lib/utils";
 
 // Width % for each phase bar in a combined "all" run (leaves a visible gap between the two bars)
 const COMBINED_PHASE_PCT = 48;
@@ -11,8 +13,6 @@ function ResultBadge({ tc }: { tc: TestCase }) {
   if (tc.status === "skipped") return <span className="result-badge skip">— skip</span>;
   return null;
 }
-import { apiFetch } from "@/lib/api";
-import { formatDuration, formatPhase, statusClass, passRate, shortRunId, GITHUB_REPO } from "@/lib/utils";
 
 type TabKey = "all" | "failed" | "passed";
 
