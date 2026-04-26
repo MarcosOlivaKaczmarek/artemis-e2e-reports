@@ -5,7 +5,7 @@ import { FastifyInstance } from "fastify";
 export default fp(async function multipartPlugin(fastify: FastifyInstance) {
   await fastify.register(multipart, {
     limits: {
-      fileSize: 500 * 1024 * 1024, // 500MB max archive size
+      fileSize: 2 * 1024 * 1024 * 1024, // 2GB max archive size
       files: 1,
     },
   });

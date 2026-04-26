@@ -9,6 +9,7 @@ import fs from "fs";
 import fsp from "fs/promises";
 import path from "path";
 import os from "os";
+import { pipeline } from "stream/promises";
 import { extract } from "tar";
 
 export default async function uploadRoutes(fastify: FastifyInstance) {
@@ -18,15 +19,16 @@ export default async function uploadRoutes(fastify: FastifyInstance) {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const parts = request.parts();
       const fields: Record<string, string> = {};
-      let archiveBuffer: Buffer | null = null;
+      let archivePath: string | null = null;
+      let archiveSize = 0;
+      const tmpUploadDir = await fsp.mkdtemp(path.join(os.tmpdir(), "e2e-archive-"));
 
       for await (const part of parts) {
         if (part.type === "file") {
-          const chunks: Buffer[] = [];
-          for await (const chunk of part.file) {
-            chunks.push(chunk);
-          }
-          archiveBuffer = Buffer.concat(chunks);
+          archivePath = path.join(tmpUploadDir, "upload.tar.gz");
+          const writeStream = fs.createWriteStream(archivePath);
+          await pipeline(part.file, writeStream);
+          archiveSize = (await fsp.stat(archivePath)).size;
         } else {
           fields[part.fieldname] = (part as any).value as string;
         }
@@ -34,7 +36,8 @@ export default async function uploadRoutes(fastify: FastifyInstance) {
 
       const { run_id: runId, github_run_id: githubRunId, branch, commit_sha: commitSha, phase, pr_number: prNumber, triggered_by: triggeredBy } = fields;
 
-      if (!archiveBuffer || !runId || !githubRunId || !branch || !commitSha || !phase) {
+      if (!archivePath || !runId || !githubRunId || !branch || !commitSha || !phase) {
+        await fsp.rm(tmpUploadDir, { recursive: true, force: true }).catch(() => {});
         return reply.code(400).send({
           error: "Missing required fields: archive, run_id, github_run_id, branch, commit_sha, phase",
         });
@@ -49,10 +52,6 @@ export default async function uploadRoutes(fastify: FastifyInstance) {
       const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), "e2e-upload-"));
 
       try {
-        // Save the archive to temp
-        const archivePath = path.join(tmpDir, "upload.tar.gz");
-        await fsp.writeFile(archivePath, archiveBuffer);
-
         // Clean up old data if re-uploading the same run
         db.prepare("DELETE FROM test_cases WHERE run_id = ?").run(runId);
 
@@ -60,14 +59,12 @@ export default async function uploadRoutes(fastify: FastifyInstance) {
         db.prepare(`
           INSERT OR REPLACE INTO runs (id, github_run_id, branch, commit_sha, pr_number, phase, triggered_by, status, upload_size_bytes)
           VALUES (?, ?, ?, ?, ?, ?, ?, 'uploading', ?)
-        `).run(runId, githubRunId, branch, commitSha, prNumber ? parseInt(prNumber) : null, phase, triggeredBy || null, archiveBuffer.length);
+        `).run(runId, githubRunId, branch, commitSha, prNumber ? parseInt(prNumber) : null, phase, triggeredBy || null, archiveSize);
 
         // Extract archive
         const extractDir = path.join(tmpDir, "extracted");
         await fsp.mkdir(extractDir, { recursive: true });
-
-        // Validate archive before extraction
-        await extract({ file: archivePath, cwd: extractDir });
+        await extract({ file: archivePath!, cwd: extractDir });
 
         // Validate no path traversal in extracted files
         const entries = await fsp.readdir(extractDir, { withFileTypes: true, recursive: true });
@@ -251,6 +248,7 @@ export default async function uploadRoutes(fastify: FastifyInstance) {
         });
       } finally {
         await fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+        await fsp.rm(tmpUploadDir, { recursive: true, force: true }).catch(() => {});
       }
     }
   );
