@@ -1,7 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { getDb } from "../db.js";
 import { getRunDir } from "../config.js";
-import { requireAuth, requireToken } from "../guards/auth-guard.js";
+import { requireToken } from "../guards/auth-guard.js";
 import type { Run, TestCase } from "@artemis-e2e/shared";
 import fs from "fs";
 import fsp from "fs/promises";
@@ -94,7 +94,7 @@ interface RunParams {
 export default async function runsRoutes(fastify: FastifyInstance) {
   fastify.get<{ Querystring: RunsQuery }>(
     "/api/runs",
-    { preHandler: requireAuth },
+    {},
     async (request) => {
       const { page: pageStr, limit: limitStr, branch, status, pr_number, phase, q } = request.query;
       const page = Math.max(parseInt(pageStr || "1") || 1, 1);
@@ -155,7 +155,7 @@ export default async function runsRoutes(fastify: FastifyInstance) {
 
   fastify.get<{ Params: RunParams }>(
     "/api/runs/:id",
-    { preHandler: requireAuth },
+    {},
     async (request, reply) => {
       const { id } = request.params;
       const db = getDb();
@@ -212,7 +212,7 @@ export default async function runsRoutes(fastify: FastifyInstance) {
   // Monocart reports listing for a run
   fastify.get<{ Params: RunParams }>(
     "/api/runs/:id/monocart-reports",
-    { preHandler: requireAuth },
+    {},
     async (request, reply) => {
       const { id } = request.params;
       const db = getDb();

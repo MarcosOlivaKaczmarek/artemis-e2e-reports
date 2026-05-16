@@ -1,6 +1,5 @@
 import { FastifyInstance } from "fastify";
 import { getDb } from "../db.js";
-import { requireAuth } from "../guards/auth-guard.js";
 
 interface TrendsQuery {
   days?: string;
@@ -10,7 +9,7 @@ interface TrendsQuery {
 export default async function trendsRoutes(fastify: FastifyInstance) {
   fastify.get<{ Querystring: TrendsQuery }>(
     "/api/trends",
-    { preHandler: requireAuth },
+    {},
     async (request) => {
       const { days: daysStr, branch } = request.query;
       const days = Math.min(Math.max(parseInt(daysStr || "30") || 30, 1), 365);

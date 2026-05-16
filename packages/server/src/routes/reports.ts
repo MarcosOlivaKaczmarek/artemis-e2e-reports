@@ -1,6 +1,5 @@
 import { FastifyInstance } from "fastify";
 import { REPORTS_DIR } from "../config.js";
-import { requireAuth } from "../guards/auth-guard.js";
 import path from "path";
 import fs from "fs";
 import fsp from "fs/promises";
@@ -33,7 +32,7 @@ interface ReportsParams {
 export default async function reportsRoutes(fastify: FastifyInstance) {
   fastify.get<{ Params: ReportsParams }>(
     "/reports/*",
-    { preHandler: requireAuth },
+    {},
     async (request, reply) => {
       const segments = request.params["*"];
 

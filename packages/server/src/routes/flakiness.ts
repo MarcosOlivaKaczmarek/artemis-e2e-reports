@@ -1,6 +1,5 @@
 import { FastifyInstance } from "fastify";
 import { getDb } from "../db.js";
-import { requireAuth } from "../guards/auth-guard.js";
 
 interface FlakinessQuery {
   days?: string;
@@ -10,7 +9,7 @@ interface FlakinessQuery {
 export default async function flakinessRoutes(fastify: FastifyInstance) {
   fastify.get<{ Querystring: FlakinessQuery }>(
     "/api/flakiness",
-    { preHandler: requireAuth },
+    {},
     async (request) => {
       const { days: daysStr, suite } = request.query;
       const days = Math.min(parseInt(daysStr || "30") || 30, 365);

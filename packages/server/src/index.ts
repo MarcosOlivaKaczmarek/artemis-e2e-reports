@@ -6,7 +6,6 @@ import { startBackupScheduler } from "./backup.js";
 import { startCleanupScheduler } from "./routes/cleanup.js";
 
 // Plugins
-import authPlugin from "./plugins/auth.js";
 import multipartPlugin from "./plugins/multipart.js";
 import staticPlugin from "./plugins/static.js";
 
@@ -17,7 +16,6 @@ import trendsRoutes from "./routes/trends.js";
 import uploadRoutes from "./routes/upload.js";
 import backupRoutes from "./routes/backup.js";
 import cleanupRoutes from "./routes/cleanup.js";
-import authRoutes from "./routes/auth.js";
 import reportsRoutes from "./routes/reports.js";
 import flakinessRoutes from "./routes/flakiness.js";
 import migrateVideosRoutes from "./routes/migrate-videos.js";
@@ -60,7 +58,6 @@ async function start() {
     });
 
     // Plugins
-    await fastify.register(authPlugin);
     await fastify.register(multipartPlugin);
 
     // Routes (register before static so API routes take precedence)
@@ -70,7 +67,6 @@ async function start() {
     await fastify.register(uploadRoutes);
     await fastify.register(backupRoutes);
     await fastify.register(cleanupRoutes);
-    await fastify.register(authRoutes);
     await fastify.register(reportsRoutes);
     await fastify.register(flakinessRoutes);
 

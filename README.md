@@ -35,13 +35,11 @@ Copy `.env.example` to `.env` and fill in the values:
 |---|---|---|
 | `UPLOAD_TOKEN` | Yes | Bearer token CI uses to authenticate uploads (`PUT /api/upload`) |
 | `GITHUB_TOKEN` | No | GitHub token for PR state checks during cleanup |
-| `APP_URL` | No | Public URL of the app, used for OAuth callback (default: `http://localhost:3000`) |
-| `SESSION_SECRET` | No* | Signs JWT session cookies — required if OAuth is enabled |
-| `GITHUB_CLIENT_ID` | No | GitHub OAuth App client ID — enables login if set |
-| `GITHUB_CLIENT_SECRET` | No | GitHub OAuth App client secret |
 | `GITHUB_REPO` | No | `owner/repo` used for PR links and cleanup (default: `ls1intum/Artemis`) |
 | `DB_PATH` | No | Path to the SQLite database file (default: `<DATA_DIR>/reports.db`) |
 | `DATA_DIR` | No | Root directory for all persisted data (default: `./data`) |
+
+The dashboard is publicly accessible — no login is required to view runs or reports.
 
 **Retention tuning** (all optional, sensible defaults):
 
@@ -54,9 +52,6 @@ Copy `.env.example` to `.env` and fill in the values:
 | `PR_CHECK_TTL_MS` | `21600000` | How long a PR's open/closed state is cached before re-fetching from GitHub (ms) |
 | `DISK_WATERMARK_BYTES` | `5368709120` | Free-space threshold (5 GB) — upload handler triggers emergency pruning if free space drops below this |
 
-Generate a session secret: `openssl rand -base64 32`
-
-When `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are not set, authentication is disabled and all routes are publicly accessible.
 
 ## Deployment
 
@@ -65,7 +60,7 @@ The app is deployed via Docker Compose. The image is automatically built and pus
 ```bash
 # On the server
 cp .env.example .env
-# Fill in UPLOAD_TOKEN, SESSION_SECRET, etc.
+# Fill in UPLOAD_TOKEN, GITHUB_TOKEN, etc.
 docker compose pull
 docker compose up -d
 ```
@@ -89,18 +84,15 @@ Optional: `pr_number`, `triggered_by`.
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | `GET` | `/api/health` | None | Health check |
-| `GET` | `/api/runs` | Session | List runs (paginated, filterable) |
-| `GET` | `/api/runs/:id` | Session | Run detail + test cases |
+| `GET` | `/api/runs` | None | List runs (paginated, filterable) |
+| `GET` | `/api/runs/:id` | None | Run detail + test cases |
 | `DELETE` | `/api/runs/:id` | Token | Delete report files (preserves stats) |
-| `GET` | `/api/runs/:id/monocart-reports` | Session | List available Monocart reports for a run |
-| `GET` | `/api/trends` | Session | Trend data + summary stats |
+| `GET` | `/api/runs/:id/monocart-reports` | None | List available Monocart reports for a run |
+| `GET` | `/api/trends` | None | Trend data + summary stats |
+| `GET` | `/api/flakiness` | None | Flakiness data per test |
 | `PUT` | `/api/upload` | Token | Upload test results archive |
 | `POST` | `/api/cleanup` | Token | Delete report files for closed PRs |
 | `POST` | `/api/backup` | Token | Trigger manual DB backup |
-| `GET` | `/api/auth/session` | None | Current session |
-| `GET` | `/api/auth/login` | None | GitHub OAuth redirect |
-| `GET` | `/api/auth/callback` | None | GitHub OAuth callback |
-| `POST` | `/api/auth/logout` | None | Clear session cookie |
 | `GET` | `/reports/*` | Session | Serve static report files |
 
 ## Backups
