@@ -39,8 +39,6 @@ Copy `.env.example` to `.env` and fill in the values:
 | `DB_PATH` | No | Path to the SQLite database file (default: `<DATA_DIR>/reports.db`) |
 | `DATA_DIR` | No | Root directory for all persisted data (default: `./data`) |
 
-The dashboard is publicly accessible — no login is required to view runs or reports.
-
 **Retention tuning** (all optional, sensible defaults):
 
 | Variable | Default | Description |
