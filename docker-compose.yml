@@ -1,6 +1,6 @@
 services:
   app:
-    image: ghcr.io/marcosolivakaczmarek/artemis-e2e-reports:latest
+    image: ghcr.io/ls1intum/artemis-e2e-reports:latest
     restart: always
     ports:
       - "3000:3000"
@@ -11,7 +11,7 @@ services:
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       - DB_PATH=/data/reports.db
       - DATA_DIR=/data
-      - APP_URL=${APP_URL:-https://ba-oliva.aet.cit.tum.de}
+      - APP_URL=${APP_URL:-http://localhost:3000}
       - SESSION_SECRET=${SESSION_SECRET}
       - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
       - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}

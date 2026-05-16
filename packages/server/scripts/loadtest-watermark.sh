@@ -8,7 +8,7 @@
 #     -e DATA_DIR=/data -e DB_PATH=/data/reports.db \
 #     -e UPLOAD_TOKEN=test -e DISK_WATERMARK_BYTES=$((512*1024*1024)) \
 #     -e MAX_AGE_DAYS=0 -e MAX_RUNS_PER_PR_PHASE=1 -e MAX_RUNS_PER_NULL_PR_GROUP=1 \
-#     ghcr.io/marcosolivakaczmarek/artemis-e2e-reports:test
+#     ghcr.io/ls1intum/artemis-e2e-reports:test
 #
 #   ./loadtest-watermark.sh http://localhost:3000 test 60
 #

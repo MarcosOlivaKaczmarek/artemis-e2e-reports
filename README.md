@@ -60,7 +60,7 @@ When `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are not set, authentication i
 
 ## Deployment
 
-The app is deployed via Docker Compose. The image is automatically built and pushed to `ghcr.io/marcosolivakaczmarek/artemis-e2e-reports:latest` on every push to `main`.
+The app is deployed via Docker Compose. The image is automatically built and pushed to `ghcr.io/ls1intum/artemis-e2e-reports:latest` on every push to `main`.
 
 ```bash
 # On the server
