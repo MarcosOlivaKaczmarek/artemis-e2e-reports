@@ -1,7 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { getDb } from "../db.js";
-import { getRunDir } from "../config.js";
-import { pruneOldRuns } from "./cleanup.js";
+import { getRunDir, DATA_DIR } from "../config.js";
+import { pruneOldRuns, pruneNullPrRuns, pruneByMaxAge } from "./cleanup.js";
 import { parseJUnitXml } from "../parsers/junit.js";
 import { parseLcov } from "../parsers/coverage.js";
 import { requireToken } from "../guards/auth-guard.js";
@@ -12,11 +12,59 @@ import os from "os";
 import { pipeline } from "stream/promises";
 import { extract } from "tar";
 
+const DISK_WATERMARK_BYTES = parseInt(
+  process.env.DISK_WATERMARK_BYTES || `${5 * 1024 * 1024 * 1024}`,
+  10
+);
+const EMERGENCY_PRUNE_BATCH = parseInt(process.env.EMERGENCY_PRUNE_BATCH || "10", 10);
+
+async function freeBytes(dir: string): Promise<number> {
+  try {
+    const s = await fsp.statfs(dir);
+    return Number(s.bavail) * Number(s.bsize);
+  } catch {
+    return Number.MAX_SAFE_INTEGER;
+  }
+}
+
+async function emergencyDiskGuard(): Promise<void> {
+  let free = await freeBytes(DATA_DIR);
+  if (free >= DISK_WATERMARK_BYTES) return;
+  console.warn(`[disk-guard] free=${free} below watermark=${DISK_WATERMARK_BYTES}; running prune`);
+  await pruneByMaxAge();
+  await pruneNullPrRuns();
+  free = await freeBytes(DATA_DIR);
+  if (free >= DISK_WATERMARK_BYTES) return;
+
+  const db = getDb();
+  while (free < DISK_WATERMARK_BYTES) {
+    const oldest = db
+      .prepare(
+        `SELECT id FROM runs WHERE reports_deleted = 0 ORDER BY created_at ASC LIMIT ?`
+      )
+      .all(EMERGENCY_PRUNE_BATCH) as { id: string }[];
+    if (oldest.length === 0) break;
+    for (const r of oldest) {
+      await fsp.rm(getRunDir(r.id), { recursive: true, force: true }).catch(() => {});
+    }
+    const stmt = db.prepare(
+      "UPDATE runs SET reports_deleted = 1, deleted_at = CURRENT_TIMESTAMP WHERE id = ?"
+    );
+    const tx = db.transaction((ids: string[]) => {
+      for (const id of ids) stmt.run(id);
+    });
+    tx(oldest.map((r) => r.id));
+    console.warn(`[disk-guard] emergency pruned ${oldest.length} oldest runs`);
+    free = await freeBytes(DATA_DIR);
+  }
+}
+
 export default async function uploadRoutes(fastify: FastifyInstance) {
   fastify.put(
     "/api/upload",
     { preHandler: requireToken },
     async (request: FastifyRequest, reply: FastifyReply) => {
+      await emergencyDiskGuard();
       const parts = request.parts();
       const fields: Record<string, string> = {};
       let archivePath: string | null = null;
